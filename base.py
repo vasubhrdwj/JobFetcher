@@ -73,16 +73,26 @@ def score_job(resume, job):
         f"Tags: {', '.join(job.get('tags', []))}\n"
         f"Description: {strip_html(job.get('description',''))[:3000]}"
     )
-    prompt = f"""You score how well a candidate's resume fits a job posting.
+    prompt = f"""You are a strict resume-job fit scorer. Ground your analysis ONLY in the JD text — never invent requirements.
 
-Rubric (skills overlap matters more than seniority match):
-- 0-2: clearly wrong field (sales, accounting, healthcare, etc.) OR requires skills the candidate doesn't have at all.
-- 3-4: adjacent field, some transferable skills, would need significant ramp-up.
-- 5-6: relevant role but mismatched seniority (e.g. asks for 5+ yrs, candidate has 1) OR partial skills overlap.
-- 7-8: solid fit — candidate has most required skills, seniority is reasonable, would be a strong applicant.
-- 9-10: excellent fit — candidate's core skills directly match the JD, seniority aligns, would likely get an interview.
+Think through silently before answering:
+1. ROLE_TYPE: software engineering | non-engineering (sales, accounting, hospitality, HR, marketing, operations, healthcare, etc.) | adjacent (data, devops, support engineering, etc.)
+2. SENIORITY: read the title and any "X+ years" line. Tag as: intern | junior (0-2 yrs) | mid (2-5 yrs) | senior (5+ yrs) | lead/staff/principal.
+3. REQUIRED_SKILLS: list ONLY technologies actually named in the JD text. Do not assume.
+4. RESUME_MATCH: which of those skills does the candidate's resume actually mention?
 
-A backend/SDE role asking for Python, FastAPI, REST, microservices, OAuth, Kafka, Docker, AWS — even at "Software Engineer II" level — should score 7+ for this candidate.
+HARD CAPS (apply BEFORE rubric, override everything):
+- Non-engineering role -> max 3.
+- Lead / Staff / Principal / Senior in title for a ~1 yr candidate -> max 5.
+- JD explicitly requires 4+ years for a ~1 yr candidate -> max 6.
+- Stack mismatch (e.g. JD says Node.js/Go, candidate has Python) caps at 6 unless skills are clearly transferable.
+
+After caps, rubric:
+- 0-2: wrong field or no real skill overlap
+- 3-4: adjacent, transferable but significant ramp-up
+- 5-6: relevant role with mismatched seniority OR partial skills overlap
+- 7-8: solid fit — most required skills present, seniority reasonable
+- 9-10: excellent — core JD skills directly match, seniority aligns
 
 Resume:
 {resume}
@@ -90,10 +100,18 @@ Resume:
 Job:
 {job_text}
 
-Respond in EXACTLY this format on one line:
+Respond on ONE line in EXACTLY this format:
 SCORE|REASON
-where SCORE is an integer 0-10 and REASON is one short sentence (under 20 words).
-Example: 7|Strong backend skills match, but JD asks for 3+ yrs Kafka in production."""
+
+REASON requirements:
+- MUST include one short verbatim phrase from the JD in single quotes (e.g. 'requires 4+ years', 'Customer Success Manager', 'Outside Sales Representative').
+- Under 25 words total.
+- If you cannot find a JD phrase to quote, the score is 0.
+
+Examples:
+3|Sales role: 'Outside Sales Representative to expand market presence'; backend skills don't transfer.
+6|'4+ years' required, candidate has ~1; Node.js/Go stack vs. Python — partial overlap only.
+8|Backend SDE: 'design and evolve the data model'; FastAPI/Kafka/OAuth experience aligns well."""
     completion = client.chat.completions.create(
         model="qwen/qwen3-32b",
         messages=[{"role": "user", "content": prompt}],
