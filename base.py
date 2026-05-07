@@ -1,5 +1,8 @@
 import os
 import re
+import csv
+import json
+from datetime import datetime
 from html import unescape
 import requests
 from groq import Groq
@@ -197,7 +200,8 @@ Examples:
     n = re.search(r"\b(10|[0-9])\b", text)
     return (int(n.group(1)) if n else None), "?", "(no critic reason parsed)"
 
-# 4. Loop over jobs and print scores
+# 4. Loop over jobs, score, and collect results
+results = []
 for i, job in enumerate(jobs[:20], 1):
     title = job.get("position", "?")
     company = job.get("company", "?")
@@ -205,13 +209,60 @@ for i, job in enumerate(jobs[:20], 1):
     try:
         score, reason = score_job(RESUME, job)
     except Exception as e:
-        score, reason = "err", str(e)[:120]
+        score, reason = None, str(e)[:120]
     print(f"   P1 [{score}] → {reason}", flush=True)
+    final, verdict, crit_reason = None, "?", "(skipped)"
     if isinstance(score, int):
         try:
             final, verdict, crit_reason = critic_review(RESUME, job, score, reason)
         except Exception as e:
-            final, verdict, crit_reason = "err", "?", str(e)[:120]
+            final, verdict, crit_reason = None, "?", str(e)[:120]
         print(f"   P2 [{final}] {verdict} → {crit_reason}\n", flush=True)
     else:
         print("", flush=True)
+    results.append({
+        "title": title,
+        "company": company,
+        "url": job.get("url") or job.get("apply_url") or "",
+        "p1_score": score,
+        "p2_score": final,
+        "verdict": verdict,
+        "reason": crit_reason if isinstance(final, int) else reason,
+    })
+
+# 5. Phase 3 — ranked top-N
+TOP_N = 10
+ranked = sorted(
+    [r for r in results if isinstance(r["p2_score"], int)],
+    key=lambda r: r["p2_score"],
+    reverse=True,
+)[:TOP_N]
+
+print("=" * 72)
+print(f"TOP {len(ranked)} MATCHES (ranked by Phase 2 score)")
+print("=" * 72)
+for rank, r in enumerate(ranked, 1):
+    print(f"{rank:>2}. [{r['p2_score']}] {r['title']} @ {r['company']}")
+    print(f"    {r['reason']}")
+    if r["url"]:
+        print(f"    {r['url']}")
+    print()
+
+# 6. Persist results
+out_dir = "results"
+os.makedirs(out_dir, exist_ok=True)
+stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+json_path = os.path.join(out_dir, f"run_{stamp}.json")
+csv_path = os.path.join(out_dir, f"run_{stamp}.csv")
+
+with open(json_path, "w") as f:
+    json.dump({"timestamp": stamp, "results": results}, f, indent=2)
+
+fields = ["title", "company", "url", "p1_score", "p2_score", "verdict", "reason"]
+with open(csv_path, "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=fields)
+    w.writeheader()
+    for r in results:
+        w.writerow(r)
+
+print(f"Saved {len(results)} results to {json_path} and {csv_path}")
