@@ -140,6 +140,22 @@ def extract_single_quote_phrase(text):
     return (m.group(1).strip() if m else "")
 
 
+def extract_any_quoted_phrase(text):
+    if not text:
+        return ""
+    single = re.search(r"'([^']+)'", text)
+    if single:
+        return single.group(1).strip()
+    double = re.search(r'"([^"]+)"', text)
+    if double:
+        return double.group(1).strip()
+    return ""
+
+
+def normalize_for_match(s):
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
 def quote_exists_in_jd(job, reason):
     phrase = extract_single_quote_phrase(reason)
     if not phrase:
@@ -150,6 +166,28 @@ def quote_exists_in_jd(job, reason):
         f"{strip_html(job.get('description',''))}"
     ).lower()
     return phrase.lower() in jd
+
+
+def quote_exists_in_jd_relaxed(job, reason):
+    phrase = extract_any_quoted_phrase(reason)
+    if not phrase:
+        return False
+    jd = (
+        f"{job.get('position','')} "
+        f"{', '.join(job.get('tags', []))} "
+        f"{strip_html(job.get('description',''))}"
+    )
+    p_norm = normalize_for_match(phrase)
+    j_norm = normalize_for_match(jd)
+    if not p_norm or not j_norm:
+        return False
+    if p_norm in j_norm:
+        return True
+    p_tokens = [t for t in p_norm.split() if len(t) > 2]
+    if not p_tokens:
+        return False
+    overlap = sum(1 for t in p_tokens if t in j_norm.split())
+    return overlap >= max(2, int(0.7 * len(p_tokens)))
 
 
 def groq_completion_with_retry(messages, attempts=3, base_delay=2):
@@ -295,6 +333,36 @@ Examples:
 5|REVISED|Phase 1 inflated; JD requires '5+ years' for a ~1 yr candidate."""
     completion = groq_completion_with_retry([{"role": "user", "content": prompt}])
     text = (completion.choices[0].message.content or "").strip()
+
+    def parse_critic_text(raw):
+        for line in reversed(raw.splitlines()):
+            m = re.match(r"\s*(\d+)\s*\|\s*(AGREE|REVISED)\s*\|\s*(.+)", line, re.IGNORECASE)
+            if not m:
+                continue
+            score = int(m.group(1))
+            verdict = m.group(2).strip().upper()
+            reason = m.group(3).strip()
+            # Critic quote check is intentionally a bit relaxed to reduce false invalids.
+            if 0 <= score <= 10 and quote_exists_in_jd_relaxed(job, reason):
+                return enforce_hard_cap(job, score), verdict, reason
+        return None
+
+    parsed = parse_critic_text(text)
+    if parsed:
+        return parsed
+
+    correction_prompt = (
+        "Reformat your previous answer to EXACTLY one line with no extra text:\n"
+        "FINAL_SCORE|VERDICT|REASON\n"
+        "Keep FINAL_SCORE 0-10, VERDICT AGREE or REVISED, and include one quoted JD phrase.\n"
+        f"Previous answer:\n{text}"
+    )
+    corrected = groq_completion_with_retry([{"role": "user", "content": correction_prompt}], attempts=2, base_delay=1)
+    corrected_text = (corrected.choices[0].message.content or "").strip()
+    parsed = parse_critic_text(corrected_text)
+    if parsed:
+        return parsed
+
     for line in reversed(text.splitlines()):
         m = re.match(r"\s*(\d+)\s*\|\s*(AGREE|REVISED)\s*\|\s*(.+)", line, re.IGNORECASE)
         if not m:
@@ -302,13 +370,15 @@ Examples:
         score = int(m.group(1))
         verdict = m.group(2).strip().upper()
         reason = m.group(3).strip()
-        if 0 <= score <= 10 and quote_exists_in_jd(job, reason):
+        if 0 <= score <= 10 and quote_exists_in_jd_relaxed(job, reason):
             return enforce_hard_cap(job, score), verdict, reason
     return None, "?", "(invalid critic output)"
 
 # 4. Loop over jobs, score, and collect results
 results = []
 RUN_JOBS = 10
+p1_invalid_count = 0
+p2_critic_invalid_count = 0
 for i, job in enumerate(jobs[:RUN_JOBS], 1):
     title = job.get("position", "?")
     company = job.get("company", "?")
@@ -317,6 +387,14 @@ for i, job in enumerate(jobs[:RUN_JOBS], 1):
         score, reason = score_job(RESUME, job)
     except Exception as e:
         score, reason = None, str(e)[:120]
+    if not isinstance(score, int):
+        # One additional scorer attempt before giving up.
+        try:
+            score, reason = score_job(RESUME, job)
+        except Exception as e:
+            score, reason = None, str(e)[:120]
+    if not isinstance(score, int):
+        p1_invalid_count += 1
     print(f"   P1 [{score}] → {reason}", flush=True)
     final, verdict, crit_reason = None, "?", "(skipped)"
     if isinstance(score, int):
@@ -332,6 +410,7 @@ for i, job in enumerate(jobs[:RUN_JOBS], 1):
                 final, verdict, crit_reason = None, "?", str(e)[:120]
         if not isinstance(final, int):
             final, verdict, crit_reason = score, "CRITIC_INVALID", reason
+            p2_critic_invalid_count += 1
         # Anti-rubber-stamp safety: AGREE only if critic score stays near scorer.
         if verdict == "AGREE" and isinstance(final, int) and abs(final - score) > 1:
             verdict = "REVISED"
@@ -366,6 +445,12 @@ for rank, r in enumerate(ranked, 1):
     if r["url"]:
         print(f"    {r['url']}")
     print()
+
+print(
+    f"Run summary: p1_invalid={p1_invalid_count}, "
+    f"p2_critic_invalid={p2_critic_invalid_count}, total_jobs={RUN_JOBS}",
+    flush=True,
+)
 
 # 6. Persist results
 out_dir = "results"
