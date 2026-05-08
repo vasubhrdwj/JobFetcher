@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import json
+import time
 from datetime import datetime
 from html import unescape
 import requests
@@ -151,6 +152,31 @@ def quote_exists_in_jd(job, reason):
     return phrase.lower() in jd
 
 
+def groq_completion_with_retry(messages, attempts=3, base_delay=2):
+    for attempt in range(1, attempts + 1):
+        try:
+            return client.chat.completions.create(
+                model="qwen/qwen3-32b",
+                messages=messages,
+                temperature=0.1,
+                max_completion_tokens=4096,
+                top_p=0.95,
+                reasoning_effort="default",
+                stream=False,
+            )
+        except Exception as e:
+            msg = str(e).lower()
+            is_rate_limited = ("429" in msg) or ("rate limit" in msg)
+            if not is_rate_limited or attempt == attempts:
+                raise
+            wait_s = base_delay * attempt
+            print(
+                f"   retrying after rate limit ({attempt}/{attempts}) in {wait_s}s...",
+                flush=True,
+            )
+            time.sleep(wait_s)
+
+
 def score_job(resume, job):
     job_text = (
         f"Title: {job.get('position','')}\n"
@@ -197,15 +223,7 @@ Examples:
 3|Sales role: 'Outside Sales Representative to expand market presence'; backend skills don't transfer.
 6|'4+ years' required, candidate has ~1; Node.js/Go stack vs. Python — partial overlap only.
 8|Backend SDE: 'design and evolve the data model'; FastAPI/Kafka/OAuth experience aligns well."""
-    completion = client.chat.completions.create(
-        model="qwen/qwen3-32b",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_completion_tokens=4096,
-        top_p=0.95,
-        reasoning_effort="default",
-        stream=False,
-    )
+    completion = groq_completion_with_retry([{"role": "user", "content": prompt}])
     text = (completion.choices[0].message.content or "").strip()
     # print(f"   RAW: {repr(text)[:200]}", flush=True)
     # parse "SCORE|REASON" — grab last line in case model adds preamble
@@ -256,7 +274,9 @@ Resume:
 Job:
 {job_text}
 
-Respond on ONE line in EXACTLY this format:
+Output constraints (critical):
+- Output ONLY one line. No markdown, no preface, no bullets.
+- Use ONLY this exact format:
 FINAL_SCORE|VERDICT|REASON
 
 - FINAL_SCORE: integer 0-10 (your corrected score; equal to Phase 1 if you agree).
@@ -273,19 +293,12 @@ Examples:
 3|REVISED|Phase 1 missed non-eng cap: 'Outside Sales Representative' is sales, not engineering.
 7|AGREE|'design and evolve the data model' — backend stack and seniority align.
 5|REVISED|Phase 1 inflated; JD requires '5+ years' for a ~1 yr candidate."""
-    completion = client.chat.completions.create(
-        model="qwen/qwen3-32b",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_completion_tokens=4096,
-        top_p=0.95,
-        reasoning_effort="default",
-        stream=False,
-    )
+    completion = groq_completion_with_retry([{"role": "user", "content": prompt}])
     text = (completion.choices[0].message.content or "").strip()
-    last = text.strip().splitlines()[-1]
-    m = re.match(r"\s*(\d+)\s*\|\s*(AGREE|REVISED)\s*\|\s*(.+)", last, re.IGNORECASE)
-    if m:
+    for line in reversed(text.splitlines()):
+        m = re.match(r"\s*(\d+)\s*\|\s*(AGREE|REVISED)\s*\|\s*(.+)", line, re.IGNORECASE)
+        if not m:
+            continue
         score = int(m.group(1))
         verdict = m.group(2).strip().upper()
         reason = m.group(3).strip()
@@ -295,10 +308,11 @@ Examples:
 
 # 4. Loop over jobs, score, and collect results
 results = []
-for i, job in enumerate(jobs[:20], 1):
+RUN_JOBS = 10
+for i, job in enumerate(jobs[:RUN_JOBS], 1):
     title = job.get("position", "?")
     company = job.get("company", "?")
-    print(f"[{i}/20] scoring: {title} @ {company}...", flush=True)
+    print(f"[{i}/{RUN_JOBS}] scoring: {title} @ {company}...", flush=True)
     try:
         score, reason = score_job(RESUME, job)
     except Exception as e:
@@ -310,6 +324,14 @@ for i, job in enumerate(jobs[:20], 1):
             final, verdict, crit_reason = critic_review(RESUME, job, score, reason)
         except Exception as e:
             final, verdict, crit_reason = None, "?", str(e)[:120]
+        if not isinstance(final, int):
+            # One additional critic attempt before fallback.
+            try:
+                final, verdict, crit_reason = critic_review(RESUME, job, score, reason)
+            except Exception as e:
+                final, verdict, crit_reason = None, "?", str(e)[:120]
+        if not isinstance(final, int):
+            final, verdict, crit_reason = score, "CRITIC_INVALID", reason
         # Anti-rubber-stamp safety: AGREE only if critic score stays near scorer.
         if verdict == "AGREE" and isinstance(final, int) and abs(final - score) > 1:
             verdict = "REVISED"
