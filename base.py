@@ -7,7 +7,35 @@ from html import unescape
 import requests
 from groq import Groq
 
-client = Groq()  # reads GROQ_API_KEY from env var
+def load_dotenv(path=".env"):
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_dotenv()
+api_key = os.getenv("GROQ_API_KEY", "").strip()
+if not api_key:
+    print(
+        "Missing GROQ_API_KEY. Add it to a local .env file as GROQ_API_KEY=your_key and re-run.",
+        flush=True,
+    )
+    raise SystemExit(1)
+
+client = Groq(api_key=api_key)
 
 # 1. Your resume — paste a short version, or load from a file
 RESUME = """
@@ -58,6 +86,7 @@ print("Fetching jobs...")
 resp = requests.get(
     "https://remoteok.com/api",
     headers={"User-Agent": "learning-script"},
+    timeout=20,
 )
 jobs = resp.json()[1:]  # first item is a legal notice, skip it
 print(f"Got {len(jobs)} jobs. Scoring first 20...\n")
@@ -68,6 +97,59 @@ def strip_html(s: str) -> str:
     s = re.sub(r"<[^>]+>", " ", s or "")
     s = unescape(s)
     return re.sub(r"\s+", " ", s).strip()
+
+def infer_hard_cap(job):
+    title = (job.get("position") or "").lower()
+    desc = strip_html(job.get("description", "")).lower()
+    text = f"{title}\n{desc}"
+
+    non_eng_keywords = [
+        "sales", "account", "accounting", "hr", "human resources", "marketing",
+        "hospitality", "healthcare", "nurse", "operations", "customer success",
+        "business development",
+    ]
+    if any(k in text for k in non_eng_keywords):
+        return 3, "non-engineering role detected"
+
+    if any(k in title for k in ["lead", "staff", "principal", "senior"]):
+        return 5, "seniority title cap for ~1 year candidate"
+
+    if re.search(r"\b([4-9]|[1-9]\d)\+?\s*(years|yrs)\b", text):
+        return 6, "4+ years requirement cap"
+
+    tags = [t.lower() for t in (job.get("tags") or [])]
+    if any(x in text for x in ["node.js", "nodejs", "golang", "go "]) and "python" not in text:
+        if "python" not in tags:
+            return 6, "stack mismatch cap"
+
+    return 10, ""
+
+
+def enforce_hard_cap(job, score):
+    if not isinstance(score, int):
+        return score
+    cap, _ = infer_hard_cap(job)
+    return min(score, cap)
+
+
+def extract_single_quote_phrase(text):
+    if not text:
+        return ""
+    m = re.search(r"'([^']+)'", text)
+    return (m.group(1).strip() if m else "")
+
+
+def quote_exists_in_jd(job, reason):
+    phrase = extract_single_quote_phrase(reason)
+    if not phrase:
+        return False
+    jd = (
+        f"{job.get('position','')} "
+        f"{', '.join(job.get('tags', []))} "
+        f"{strip_html(job.get('description',''))}"
+    ).lower()
+    return phrase.lower() in jd
+
 
 def score_job(resume, job):
     job_text = (
@@ -118,7 +200,7 @@ Examples:
     completion = client.chat.completions.create(
         model="qwen/qwen3-32b",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,        # lower = more consistent scoring
+        temperature=0.1,
         max_completion_tokens=4096,
         top_p=0.95,
         reasoning_effort="default",
@@ -130,10 +212,12 @@ Examples:
     last = text.strip().splitlines()[-1]
     m = re.match(r"\s*(\d+)\s*\|\s*(.+)", last)
     if m:
-        return int(m.group(1)), m.group(2).strip()
-    # fallback: any 0-10 number
-    n = re.search(r"\b(10|[0-9])\b", text)
-    return (int(n.group(1)) if n else None), "(no reason parsed)"
+        score = int(m.group(1))
+        reason = m.group(2).strip()
+        if 0 <= score <= 10 and quote_exists_in_jd(job, reason):
+            return enforce_hard_cap(job, score), reason
+    # Fail closed on parse or evidence mismatch.
+    return None, "(invalid scorer output)"
 
 # 3b. Phase 2 — critic agent reviews Phase 1's score
 def critic_review(resume, job, phase1_score, phase1_reason):
@@ -176,8 +260,14 @@ Respond on ONE line in EXACTLY this format:
 FINAL_SCORE|VERDICT|REASON
 
 - FINAL_SCORE: integer 0-10 (your corrected score; equal to Phase 1 if you agree).
-- VERDICT: AGREE if Phase 1 was within 1 point and applied caps correctly, else REVISED.
+- VERDICT: AGREE only if ALL checks pass, else REVISED.
 - REASON: under 25 words, must include one short verbatim JD phrase in single quotes. If revising, name the specific Phase 1 error.
+
+Mandatory critic checks before AGREE:
+1) Confirm quoted phrase appears in JD text verbatim.
+2) Confirm FINAL_SCORE obeys hard caps.
+3) Confirm FINAL_SCORE is within 1 point of valid Phase 1 score.
+If any check fails, output REVISED.
 
 Examples:
 3|REVISED|Phase 1 missed non-eng cap: 'Outside Sales Representative' is sales, not engineering.
@@ -186,7 +276,7 @@ Examples:
     completion = client.chat.completions.create(
         model="qwen/qwen3-32b",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
+        temperature=0.1,
         max_completion_tokens=4096,
         top_p=0.95,
         reasoning_effort="default",
@@ -196,9 +286,12 @@ Examples:
     last = text.strip().splitlines()[-1]
     m = re.match(r"\s*(\d+)\s*\|\s*(AGREE|REVISED)\s*\|\s*(.+)", last, re.IGNORECASE)
     if m:
-        return int(m.group(1)), m.group(2).strip().upper(), m.group(3).strip()
-    n = re.search(r"\b(10|[0-9])\b", text)
-    return (int(n.group(1)) if n else None), "?", "(no critic reason parsed)"
+        score = int(m.group(1))
+        verdict = m.group(2).strip().upper()
+        reason = m.group(3).strip()
+        if 0 <= score <= 10 and quote_exists_in_jd(job, reason):
+            return enforce_hard_cap(job, score), verdict, reason
+    return None, "?", "(invalid critic output)"
 
 # 4. Loop over jobs, score, and collect results
 results = []
@@ -217,6 +310,10 @@ for i, job in enumerate(jobs[:20], 1):
             final, verdict, crit_reason = critic_review(RESUME, job, score, reason)
         except Exception as e:
             final, verdict, crit_reason = None, "?", str(e)[:120]
+        # Anti-rubber-stamp safety: AGREE only if critic score stays near scorer.
+        if verdict == "AGREE" and isinstance(final, int) and abs(final - score) > 1:
+            verdict = "REVISED"
+            crit_reason = f"critic self-corrected: AGREE invalid for score drift; '{job.get('position','')[:30]}'"
         print(f"   P2 [{final}] {verdict} → {crit_reason}\n", flush=True)
     else:
         print("", flush=True)
