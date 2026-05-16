@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     String, Text, Integer, Float, Boolean, DateTime, ForeignKey, Enum, JSON,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,10 +31,10 @@ class Company(Base):
     headquarters: Mapped[str | None] = mapped_column(String(255))
     size: Mapped[str | None] = mapped_column(String(64))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     scrape_status: Mapped[str | None] = mapped_column(String(32))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")
 
@@ -55,12 +56,12 @@ class Job(Base):
     url: Mapped[str] = mapped_column(String(1024))
     source: Mapped[str] = mapped_column(String(64), default="ats_direct")
     is_remote: Mapped[bool | None] = mapped_column(Boolean)
-    posted_at: Mapped[datetime | None] = mapped_column(DateTime)
-    discovered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     company: Mapped["Company"] = relationship(back_populates="jobs")
     applications: Mapped[list["Application"]] = relationship(back_populates="job")
@@ -90,8 +91,8 @@ class UserProfile(Base):
     education: Mapped[dict | None] = mapped_column(JSON)
     resume_text: Mapped[str | None] = mapped_column(Text)
     preferences: Mapped[dict | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     applications: Mapped[list["Application"]] = relationship(back_populates="user")
 
@@ -105,12 +106,12 @@ class Application(Base):
     status: Mapped[ApplicationStatus] = mapped_column(
         Enum(ApplicationStatus), default=ApplicationStatus.SAVED
     )
-    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
-    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime)
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     match_score: Mapped[float | None] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user: Mapped["UserProfile"] = relationship(back_populates="applications")
     job: Mapped["Job"] = relationship(back_populates="applications")

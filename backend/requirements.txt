@@ -5,7 +5,6 @@ asyncpg==0.30.0
 alembic==1.14.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
-email-validator==2.2.0
 httpx==0.28.1
 playwright==1.49.1
 openai==1.58.1
@@ -14,3 +13,5 @@ apscheduler==3.11.0
 python-multipart==0.0.20
 pillow==11.1.0
 pypdf2==3.0.1
+selectolax==0.3.28
+email-validator==2.2.0

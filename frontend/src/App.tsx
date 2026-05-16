@@ -4,12 +4,14 @@ import Companies from "./pages/Companies";
 import Jobs from "./pages/Jobs";
 import Profile from "./pages/Profile";
 import Pipeline from "./pages/Pipeline";
+import Scraper from "./pages/Scraper";
 
 const navItems = [
   { to: "/", label: "Dashboard" },
   { to: "/companies", label: "Companies" },
   { to: "/jobs", label: "Jobs" },
   { to: "/pipeline", label: "Pipeline" },
+  { to: "/scraper", label: "Scraper" },
   { to: "/profile", label: "Profile" },
 ];
 
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/scraper" element={<Scraper />} />
           <Route path="/profile" element={<Profile />} />
         </Routes>
       </main>

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -66,7 +66,7 @@ async def update_application(
 
     update_data = data.model_dump(exclude_unset=True)
     if data.status == ApplicationStatus.APPLIED and not application.applied_at:
-        update_data["applied_at"] = datetime.utcnow()
+        update_data["applied_at"] = datetime.now(timezone.utc)
 
     for key, value in update_data.items():
         setattr(application, key, value)

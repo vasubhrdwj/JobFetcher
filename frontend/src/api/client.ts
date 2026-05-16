@@ -84,6 +84,16 @@ export interface UserProfile {
   preferences: Record<string, unknown> | null;
 }
 
+export interface ScraperStatus {
+  total_companies: number;
+  scraped_at_least_once: number;
+  recent_scrapes: {
+    name: string;
+    last_scraped_at: string | null;
+    status: string | null;
+  }[];
+}
+
 export const api = {
   companies: {
     list: (params?: Record<string, string>) => {
@@ -123,6 +133,18 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+  },
+  scraper: {
+    run: () =>
+      fetchAPI<{ status: string; message: string }>("/scraper/run/", {
+        method: "POST",
+      }),
+    runCompany: (id: number) =>
+      fetchAPI<{ company: string; total_jobs: number; new_jobs: number }>(
+        `/scraper/run/${id}`,
+        { method: "POST" }
+      ),
+    status: () => fetchAPI<ScraperStatus>("/scraper/status/"),
   },
   health: () => fetchAPI<{ status: string; version: string }>("/health"),
 };
