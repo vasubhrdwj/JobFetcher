@@ -1,0 +1,778 @@
+[
+  {
+    "name": "Google",
+    "career_url": "https://careers.google.com",
+    "ats_platform": "custom",
+    "industry": "Big Tech",
+    "headquarters": "Mountain View, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Microsoft",
+    "career_url": "https://careers.microsoft.com",
+    "ats_platform": "custom",
+    "industry": "Big Tech",
+    "headquarters": "Redmond, WA",
+    "size": "10000+"
+  },
+  {
+    "name": "Apple",
+    "career_url": "https://jobs.apple.com",
+    "ats_platform": "custom",
+    "industry": "Big Tech",
+    "headquarters": "Cupertino, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Amazon",
+    "career_url": "https://amazon.jobs",
+    "ats_platform": "custom",
+    "industry": "Big Tech",
+    "headquarters": "Seattle, WA",
+    "size": "10000+"
+  },
+  {
+    "name": "Meta",
+    "career_url": "https://metacareers.com",
+    "ats_platform": "custom",
+    "industry": "Big Tech",
+    "headquarters": "Menlo Park, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Netflix",
+    "career_url": "https://jobs.netflix.com",
+    "ats_platform": "lever",
+    "industry": "Streaming / Entertainment",
+    "headquarters": "Los Gatos, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Stripe",
+    "career_url": "https://stripe.com/jobs",
+    "ats_platform": "lever",
+    "industry": "Fintech",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Airbnb",
+    "career_url": "https://airbnb.com/careers",
+    "ats_platform": "workday",
+    "industry": "Travel / Marketplace",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Uber",
+    "career_url": "https://uber.com/careers",
+    "ats_platform": "workday",
+    "industry": "Transportation / Marketplace",
+    "headquarters": "San Francisco, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Databricks",
+    "career_url": "https://databricks.com/company/careers",
+    "ats_platform": "lever",
+    "industry": "Data / AI",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Snowflake",
+    "career_url": "https://snowflake.com/careers",
+    "ats_platform": "lever",
+    "industry": "Data / Cloud",
+    "headquarters": "Bozeman, MT",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Palantir",
+    "career_url": "https://palantir.com/careers",
+    "ats_platform": "lever",
+    "industry": "Data / Defense",
+    "headquarters": "Denver, CO",
+    "size": "1000-5000"
+  },
+  {
+    "name": "SpaceX",
+    "career_url": "https://spacex.com/careers",
+    "ats_platform": "custom",
+    "industry": "Aerospace",
+    "headquarters": "Hawthorne, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Tesla",
+    "career_url": "https://tesla.com/careers",
+    "ats_platform": "custom",
+    "industry": "Automotive / Energy",
+    "headquarters": "Austin, TX",
+    "size": "10000+"
+  },
+  {
+    "name": "OpenAI",
+    "career_url": "https://openai.com/careers",
+    "ats_platform": "lever",
+    "industry": "AI Research",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Anthropic",
+    "career_url": "https://anthropic.com/careers",
+    "ats_platform": "lever",
+    "industry": "AI Research",
+    "headquarters": "San Francisco, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "NVIDIA",
+    "career_url": "https://nvidia.com/en-us/careers",
+    "ats_platform": "workday",
+    "industry": "Hardware / AI",
+    "headquarters": "Santa Clara, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "ByteDance",
+    "career_url": "https://bytedance.com/en/careers",
+    "ats_platform": "custom",
+    "industry": "Social / AI",
+    "headquarters": "Beijing, China",
+    "size": "10000+"
+  },
+  {
+    "name": "Salesforce",
+    "career_url": "https://salesforce.com/company/careers",
+    "ats_platform": "custom",
+    "industry": "Enterprise SaaS",
+    "headquarters": "San Francisco, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Adobe",
+    "career_url": "https://adobe.com/careers.html",
+    "ats_platform": "workday",
+    "industry": "Creative / SaaS",
+    "headquarters": "San Jose, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Oracle",
+    "career_url": "https://oracle.com/careers",
+    "ats_platform": "custom",
+    "industry": "Enterprise / Cloud",
+    "headquarters": "Austin, TX",
+    "size": "10000+"
+  },
+  {
+    "name": "Intel",
+    "career_url": "https://intel.com/content/www/us/en/jobs.html",
+    "ats_platform": "custom",
+    "industry": "Hardware",
+    "headquarters": "Santa Clara, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Cisco",
+    "career_url": "https://cisco.com/careers",
+    "ats_platform": "icims",
+    "industry": "Networking",
+    "headquarters": "San Jose, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "VMware",
+    "career_url": "https://vmware.com/company/careers.html",
+    "ats_platform": "workday",
+    "industry": "Virtualization / Cloud",
+    "headquarters": "Palo Alto, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "ServiceNow",
+    "career_url": "https://servicenow.com/careers",
+    "ats_platform": "icims",
+    "industry": "Enterprise SaaS",
+    "headquarters": "Santa Clara, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Atlassian",
+    "career_url": "https://atlassian.com/company/careers",
+    "ats_platform": "lever",
+    "industry": "Dev Tools / SaaS",
+    "headquarters": "Sydney, Australia",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Canva",
+    "career_url": "https://canva.com/careers",
+    "ats_platform": "lever",
+    "industry": "Design / SaaS",
+    "headquarters": "Sydney, Australia",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Figma",
+    "career_url": "https://figma.com/careers",
+    "ats_platform": "lever",
+    "industry": "Design / Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Notion",
+    "career_url": "https://notion.so/careers",
+    "ats_platform": "ashby",
+    "industry": "Productivity",
+    "headquarters": "San Francisco, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "Linear",
+    "career_url": "https://linear.app/careers",
+    "ats_platform": "ashby",
+    "industry": "Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Vercel",
+    "career_url": "https://vercel.com/careers",
+    "ats_platform": "lever",
+    "industry": "Cloud / Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "Cloudflare",
+    "career_url": "https://cloudflare.com/careers",
+    "ats_platform": "workday",
+    "industry": "Cloud / Security",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Datadog",
+    "career_url": "https://datadoghq.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Observability",
+    "headquarters": "New York, NY",
+    "size": "5000-10000"
+  },
+  {
+    "name": "MongoDB",
+    "career_url": "https://mongodb.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Database / Cloud",
+    "headquarters": "New York, NY",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Confluent",
+    "career_url": "https://confluent.io/careers",
+    "ats_platform": "lever",
+    "industry": "Data Streaming",
+    "headquarters": "Mountain View, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "HashiCorp",
+    "career_url": "https://hashicorp.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Dev Tools / Cloud",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "GitLab",
+    "career_url": "https://about.gitlab.com/jobs",
+    "ats_platform": "greenhouse",
+    "industry": "Dev Tools",
+    "headquarters": "Remote",
+    "size": "1000-5000"
+  },
+  {
+    "name": "GitHub",
+    "career_url": "https://github.com/about/careers",
+    "ats_platform": "lever",
+    "industry": "Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Block (Square)",
+    "career_url": "https://block.xyz/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Fintech",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Coinbase",
+    "career_url": "https://coinbase.com/careers",
+    "ats_platform": "lever",
+    "industry": "Crypto / Fintech",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Robinhood",
+    "career_url": "https://robinhood.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Fintech",
+    "headquarters": "Menlo Park, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Plaid",
+    "career_url": "https://plaid.com/careers",
+    "ats_platform": "ashby",
+    "industry": "Fintech",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Twilio",
+    "career_url": "https://twilio.com/careers",
+    "ats_platform": "lever",
+    "industry": "Communications",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "PagerDuty",
+    "career_url": "https://pagerduty.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Observability",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Elastic",
+    "career_url": "https://elastic.co/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Search / Observability",
+    "headquarters": "Remote",
+    "size": "1000-5000"
+  },
+  {
+    "name": "CrowdStrike",
+    "career_url": "https://crowdstrike.com/careers",
+    "ats_platform": "icims",
+    "industry": "Cybersecurity",
+    "headquarters": "Austin, TX",
+    "size": "5000-10000"
+  },
+  {
+    "name": "SentinelOne",
+    "career_url": "https://sentinelone.com/careers",
+    "ats_platform": "lever",
+    "industry": "Cybersecurity",
+    "headquarters": "Mountain View, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Zscaler",
+    "career_url": "https://zscaler.com/careers",
+    "ats_platform": "icims",
+    "industry": "Cybersecurity / Cloud",
+    "headquarters": "San Jose, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Okta",
+    "career_url": "https://okta.com/company/careers",
+    "ats_platform": "lever",
+    "industry": "Identity / Security",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "HubSpot",
+    "career_url": "https://hubspot.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Marketing SaaS",
+    "headquarters": "Cambridge, MA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Shopify",
+    "career_url": "https://shopify.com/careers",
+    "ats_platform": "custom",
+    "industry": "E-commerce",
+    "headquarters": "Ottawa, Canada",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Zoom",
+    "career_url": "https://zoom.us/careers",
+    "ats_platform": "workday",
+    "industry": "Communications",
+    "headquarters": "San Jose, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Discord",
+    "career_url": "https://discord.com/careers",
+    "ats_platform": "lever",
+    "industry": "Social / Communications",
+    "headquarters": "San Francisco, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "Reddit",
+    "career_url": "https://redditinc.com/careers",
+    "ats_platform": "workday",
+    "industry": "Social / Forum",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Pinterest",
+    "career_url": "https://pinterestcareers.com",
+    "ats_platform": "greenhouse",
+    "industry": "Social / Discovery",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Snap",
+    "career_url": "https://snap.com/careers",
+    "ats_platform": "workday",
+    "industry": "Social / AR",
+    "headquarters": "Santa Monica, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "TikTok",
+    "career_url": "https://tiktok.com/careers",
+    "ats_platform": "custom",
+    "industry": "Social / Video",
+    "headquarters": "Los Angeles, CA",
+    "size": "10000+"
+  },
+  {
+    "name": "Spotify",
+    "career_url": "https://lifeatspotify.com",
+    "ats_platform": "greenhouse",
+    "industry": "Music / Streaming",
+    "headquarters": "Stockholm, Sweden",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Roblox",
+    "career_url": "https://roblox.com/careers",
+    "ats_platform": "lever",
+    "industry": "Gaming / Metaverse",
+    "headquarters": "San Mateo, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Epic Games",
+    "career_url": "https://epicgames.com/careers",
+    "ats_platform": "custom",
+    "industry": "Gaming",
+    "headquarters": "Cary, NC",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Riot Games",
+    "career_url": "https://riotgames.com/en/work-with-us",
+    "ats_platform": "workday",
+    "industry": "Gaming",
+    "headquarters": "Los Angeles, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Wiz",
+    "career_url": "https://wiz.io/careers",
+    "ats_platform": "lever",
+    "industry": "Cybersecurity / Cloud",
+    "headquarters": "Tel Aviv, Israel",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Snyk",
+    "career_url": "https://snyk.io/careers",
+    "ats_platform": "lever",
+    "industry": "Security / Dev Tools",
+    "headquarters": "London, UK",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Cohesity",
+    "career_url": "https://cohesity.com/company/careers",
+    "ats_platform": "lever",
+    "industry": "Data Management",
+    "headquarters": "San Jose, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Rubrik",
+    "career_url": "https://rubrik.com/company/careers",
+    "ats_platform": "lever",
+    "industry": "Data Security / Cloud",
+    "headquarters": "Palo Alto, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Cruise",
+    "career_url": "https://getcruise.com/careers",
+    "ats_platform": "lever",
+    "industry": "Autonomous Vehicles",
+    "headquarters": "San Francisco, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Waymo",
+    "career_url": "https://waymo.com/careers",
+    "ats_platform": "lever",
+    "industry": "Autonomous Vehicles",
+    "headquarters": "Mountain View, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Scale AI",
+    "career_url": "https://scale.com/careers",
+    "ats_platform": "lever",
+    "industry": "AI / Data Labeling",
+    "headquarters": "San Francisco, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "Mistral AI",
+    "career_url": "https://mistral.ai/careers",
+    "ats_platform": "lever",
+    "industry": "AI Research",
+    "headquarters": "Paris, France",
+    "size": "100-500"
+  },
+  {
+    "name": "Cohere",
+    "career_url": "https://cohere.com/careers",
+    "ats_platform": "lever",
+    "industry": "AI / NLP",
+    "headquarters": "Toronto, Canada",
+    "size": "100-500"
+  },
+  {
+    "name": "AI21 Labs",
+    "career_url": "https://ai21.com/careers",
+    "ats_platform": "lever",
+    "industry": "AI Research",
+    "headquarters": "Tel Aviv, Israel",
+    "size": "100-500"
+  },
+  {
+    "name": "Hugging Face",
+    "career_url": "https://huggingface.co/jobs",
+    "ats_platform": "lever",
+    "industry": "AI / ML Platform",
+    "headquarters": "New York, NY",
+    "size": "100-500"
+  },
+  {
+    "name": "Perplexity",
+    "career_url": "https://perplexity.ai/careers",
+    "ats_platform": "lever",
+    "industry": "AI / Search",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Cursor (Anysphere)",
+    "career_url": "https://anysphere.dev/careers",
+    "ats_platform": "ashby",
+    "industry": "AI / Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Vast Data",
+    "career_url": "https://vastdata.com/careers",
+    "ats_platform": "lever",
+    "industry": "Data Storage",
+    "headquarters": "New York, NY",
+    "size": "500-1000"
+  },
+  {
+    "name": "CoreWeave",
+    "career_url": "https://coreweave.com/careers",
+    "ats_platform": "lever",
+    "industry": "Cloud / GPU",
+    "headquarters": "Roseland, NJ",
+    "size": "500-1000"
+  },
+  {
+    "name": "Lambda",
+    "career_url": "https://lambdalabs.com/careers",
+    "ats_platform": "ashby",
+    "industry": "GPU / Cloud",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Together AI",
+    "career_url": "https://together.ai/careers",
+    "ats_platform": "lever",
+    "industry": "AI / Cloud",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Replicate",
+    "career_url": "https://replicate.com/careers",
+    "ats_platform": "ashby",
+    "industry": "AI / Cloud",
+    "headquarters": "San Francisco, CA",
+    "size": "50-100"
+  },
+  {
+    "name": "Modal",
+    "career_url": "https://modal.com/careers",
+    "ats_platform": "ashby",
+    "industry": "Cloud / Dev Tools",
+    "headquarters": "New York, NY",
+    "size": "50-100"
+  },
+  {
+    "name": "Railway",
+    "career_url": "https://railway.app/careers",
+    "ats_platform": "ashby",
+    "industry": "Cloud / Dev Tools",
+    "headquarters": "San Francisco, CA",
+    "size": "50-100"
+  },
+  {
+    "name": "Fly.io",
+    "career_url": "https://fly.io/jobs",
+    "ats_platform": "custom",
+    "industry": "Cloud / Edge",
+    "headquarters": "Chicago, IL",
+    "size": "50-100"
+  },
+  {
+    "name": "Supabase",
+    "career_url": "https://supabase.com/careers",
+    "ats_platform": "ashby",
+    "industry": "Database / BaaS",
+    "headquarters": "Remote",
+    "size": "100-500"
+  },
+  {
+    "name": "Planetscale",
+    "career_url": "https://planetscale.com/careers",
+    "ats_platform": "lever",
+    "industry": "Database / Cloud",
+    "headquarters": "Remote",
+    "size": "100-500"
+  },
+  {
+    "name": "Temporal",
+    "career_url": "https://temporal.io/careers",
+    "ats_platform": "lever",
+    "industry": "Dev Tools / Workflow",
+    "headquarters": "Remote",
+    "size": "100-500"
+  },
+  {
+    "name": "Wealthfront",
+    "career_url": "https://wealthfront.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Fintech",
+    "headquarters": "Palo Alto, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Splunk (Cisco)",
+    "career_url": "https://splunk.com/en_us/careers.html",
+    "ats_platform": "workday",
+    "industry": "Observability / Security",
+    "headquarters": "San Francisco, CA",
+    "size": "5000-10000"
+  },
+  {
+    "name": "Midjourney",
+    "career_url": "https://midjourney.com/careers",
+    "ats_platform": "custom",
+    "industry": "AI / Creative",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "Stability AI",
+    "career_url": "https://stability.ai/careers",
+    "ats_platform": "lever",
+    "industry": "AI / Creative",
+    "headquarters": "London, UK",
+    "size": "100-500"
+  },
+  {
+    "name": "Aurora",
+    "career_url": "https://aurora.tech/careers",
+    "ats_platform": "lever",
+    "industry": "Autonomous Vehicles",
+    "headquarters": "Mountain View, CA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Nuro",
+    "career_url": "https://nuro.ai/careers",
+    "ats_platform": "lever",
+    "industry": "Autonomous Vehicles",
+    "headquarters": "Mountain View, CA",
+    "size": "500-1000"
+  },
+  {
+    "name": "Betterment",
+    "career_url": "https://betterment.com/careers",
+    "ats_platform": "greenhouse",
+    "industry": "Fintech",
+    "headquarters": "New York, NY",
+    "size": "500-1000"
+  },
+  {
+    "name": "Valve",
+    "career_url": "https://valve.com/en/jobs",
+    "ats_platform": "custom",
+    "industry": "Gaming",
+    "headquarters": "Bellevue, WA",
+    "size": "100-500"
+  },
+  {
+    "name": "ZoomInfo",
+    "career_url": "https://zoominfo.com/careers",
+    "ats_platform": "lever",
+    "industry": "Sales Intelligence",
+    "headquarters": "Vancouver, WA",
+    "size": "1000-5000"
+  },
+  {
+    "name": "Replit",
+    "career_url": "https://replit.com/site/careers",
+    "ats_platform": "ashby",
+    "industry": "Dev Tools / AI",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  },
+  {
+    "name": "PostHog",
+    "career_url": "https://posthog.com/careers",
+    "ats_platform": "ashby",
+    "industry": "Analytics / Dev Tools",
+    "headquarters": "Remote",
+    "size": "100-500"
+  },
+  {
+    "name": "Pinecone",
+    "career_url": "https://pinecone.io/careers",
+    "ats_platform": "lever",
+    "industry": "Vector DB / AI",
+    "headquarters": "San Francisco, CA",
+    "size": "100-500"
+  }
+]
