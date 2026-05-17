@@ -68,12 +68,22 @@ export default function Scraper() {
               className="w-full px-4 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
             >
               {scrapeAllMutation.isPending
-                ? "Scraping..."
+                ? "Scraping... (this takes a few minutes)"
                 : "Run Full Scrape"}
             </button>
+            {scrapeAllMutation.isError && (
+              <div className="mt-3 p-3 bg-red-900/40 border border-red-800 rounded-lg">
+                <p className="text-xs text-red-400">
+                  Error: {(scrapeAllMutation.error as Error)?.message || "Unknown error"}
+                </p>
+              </div>
+            )}
             {runResult && (
-              <div className="mt-3 p-3 bg-gray-800 rounded-lg">
+              <div className="mt-3 p-3 bg-green-900/40 border border-green-800 rounded-lg">
                 <p className="text-xs text-green-400">{runResult.message}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Status will update below as each company is scraped.
+                </p>
               </div>
             )}
 
