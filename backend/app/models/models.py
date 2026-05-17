@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     String, Text, Integer, Float, Boolean, DateTime, ForeignKey, Enum, JSON,
-    func,
+    func, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,13 +26,14 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     career_url: Mapped[str] = mapped_column(String(1024))
     ats_platform: Mapped[ATSPlatform] = mapped_column(Enum(ATSPlatform), default=ATSPlatform.CUSTOM)
+    ats_slug: Mapped[str | None] = mapped_column(String(255))
     industry: Mapped[str | None] = mapped_column(String(128))
     logo_url: Mapped[str | None] = mapped_column(String(1024))
     headquarters: Mapped[str | None] = mapped_column(String(255))
     size: Mapped[str | None] = mapped_column(String(64))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    scrape_status: Mapped[str | None] = mapped_column(String(32))
+    scrape_status: Mapped[str | None] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -41,6 +42,7 @@ class Company(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (UniqueConstraint("company_id", "url", name="uq_job_company_url"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     company_id: Mapped[int] = mapped_column(Integer, ForeignKey("companies.id"), index=True)
@@ -58,6 +60,7 @@ class Job(Base):
     is_remote: Mapped[bool | None] = mapped_column(Boolean)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -3,7 +3,8 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
+from sqlalchemy.exc import IntegrityError
 
 from app.database import async_session
 from app.models.models import Company, Job
@@ -31,16 +32,34 @@ async def scrape_company(company: Company, client: httpx.AsyncClient) -> list[di
         return jobs
     except Exception as e:
         logger.error(f"Error scraping {company.name}: {e}")
-        return []
+        raise
+
+
+def _parse_posted_at(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            logger.debug(f"Could not parse posted_at: {value!r}")
+            return None
+    return None
 
 
 async def upsert_jobs(jobs_data: list[dict]) -> int:
     if not jobs_data:
         return 0
+    skipped_empty = 0
     upserted = 0
+    now = datetime.now(timezone.utc)
     async with async_session() as session:
         for job_data in jobs_data:
             company_id = job_data.get("company_id")
+            url = job_data.get("url", "")
+            if not url:
+                skipped_empty += 1
+                continue
             content_hash = job_data.get("content_hash")
 
             existing = await session.execute(
@@ -52,10 +71,17 @@ async def upsert_jobs(jobs_data: list[dict]) -> int:
                     )
                 )
             )
-            if existing.scalar_one_or_none():
+            existing_job = existing.scalar_one_or_none()
+            if existing_job:
+                existing_job.last_seen_at = now
+                if content_hash and existing_job.content_hash != content_hash:
+                    existing_job.content_hash = content_hash
+                    if job_data.get("description"):
+                        existing_job.description = job_data["description"]
+                    if job_data.get("title"):
+                        existing_job.title = job_data["title"]
                 continue
 
-            url = job_data.get("url", "")
             existing_by_url = await session.execute(
                 select(Job).where(
                     and_(
@@ -65,25 +91,19 @@ async def upsert_jobs(jobs_data: list[dict]) -> int:
                     )
                 )
             )
-            existing_job = existing_by_url.scalar_one_or_none()
+            existing_url_job = existing_by_url.scalar_one_or_none()
 
-            if existing_job:
-                if content_hash and existing_job.content_hash != content_hash:
-                    existing_job.content_hash = content_hash
+            if existing_url_job:
+                existing_url_job.last_seen_at = now
+                if content_hash and existing_url_job.content_hash != content_hash:
+                    existing_url_job.content_hash = content_hash
                     if job_data.get("description"):
-                        existing_job.description = job_data["description"]
+                        existing_url_job.description = job_data["description"]
                     if job_data.get("title"):
-                        existing_job.title = job_data["title"]
+                        existing_url_job.title = job_data["title"]
                 continue
 
-            posted_at = job_data.get("posted_at")
-            if isinstance(posted_at, str):
-                try:
-                    posted_at = datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
-                except (ValueError, TypeError):
-                    posted_at = None
-            elif not isinstance(posted_at, datetime):
-                posted_at = None
+            posted_at = _parse_posted_at(job_data.get("posted_at"))
 
             job = Job(
                 company_id=company_id,
@@ -101,10 +121,18 @@ async def upsert_jobs(jobs_data: list[dict]) -> int:
                 source=job_data.get("source", "ats_direct"),
                 content_hash=content_hash,
                 posted_at=posted_at,
+                last_seen_at=now,
             )
-            session.add(job)
-            upserted += 1
+            try:
+                session.add(job)
+                await session.flush()
+                upserted += 1
+            except IntegrityError:
+                await session.rollback()
+                continue
 
+        if skipped_empty:
+            logger.debug(f"Skipped {skipped_empty} jobs with empty URLs")
         await session.commit()
     return upserted
 
@@ -114,11 +142,32 @@ async def _update_company_status(company_id: int, status: str):
         company_obj = await session.get(Company, company_id)
         if company_obj:
             company_obj.last_scraped_at = datetime.now(timezone.utc)
-            company_obj.scrape_status = status
+            company_obj.scrape_status = status[:250]
             await session.commit()
 
 
+async def _sweep_stale_jobs(scraped_company_ids: set[int], run_started_at: datetime):
+    async with async_session() as session:
+        result = await session.execute(
+            update(Job)
+            .where(
+                and_(
+                    Job.is_active == True,
+                    Job.company_id.in_(scraped_company_ids),
+                    Job.last_seen_at < run_started_at,
+                )
+            )
+            .values(is_active=False)
+        )
+        deactivated = result.rowcount
+        await session.commit()
+    if deactivated:
+        logger.info(f"Deactivated {deactivated} stale jobs")
+
+
 async def scrape_all_companies():
+    run_started_at = datetime.now(timezone.utc)
+
     async with async_session() as session:
         result = await session.execute(
             select(Company).where(Company.is_active == True).order_by(Company.name)
@@ -126,27 +175,38 @@ async def scrape_all_companies():
         companies = result.scalars().all()
 
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
-    total_jobs = 0
-    total_new = 0
+    results: list[tuple[int, int, str]] = []
 
     async def scrape_with_semaphore(company: Company, client: httpx.AsyncClient):
-        nonlocal total_jobs, total_new
         async with semaphore:
             try:
                 jobs = await scrape_company(company, client)
-                total_jobs += len(jobs)
                 new_count = await upsert_jobs(jobs)
-                total_new += new_count
-                await _update_company_status(company.id, "success")
+                if len(jobs) > 0:
+                    status = "success"
+                else:
+                    status = "success_empty"
+                await _update_company_status(company.id, status)
+                results.append((company.id, len(jobs), status))
+            except httpx.HTTPStatusError as e:
+                status = f"error: {str(e)[:200]}"
+                await _update_company_status(company.id, status)
+                results.append((company.id, 0, status))
             except Exception as e:
-                logger.error(f"Failed to scrape {company.name}: {e}")
-                await _update_company_status(company.id, f"error: {str(e)[:200]}")
+                status = f"error: {str(e)[:200]}"
+                await _update_company_status(company.id, status)
+                results.append((company.id, 0, status))
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=HEADERS, follow_redirects=True) as client:
         tasks = [scrape_with_semaphore(company, client) for company in companies]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    logger.info(f"Scrape complete: {total_jobs} total jobs, {total_new} new jobs inserted")
+    scraped_company_ids = {cid for cid, _, status in results if status in ("success", "success_empty")}
+    await _sweep_stale_jobs(scraped_company_ids, run_started_at)
+
+    total_jobs = sum(count for _, count, _ in results)
+    total_new = sum(count for _, count, status in results if status == "success")
+    logger.info(f"Scrape complete: {total_jobs} total jobs, {total_new} new jobs inserted across {len(companies)} companies")
     return {"total_jobs": total_jobs, "new_jobs": total_new, "companies_scraped": len(companies)}
 
 
@@ -157,9 +217,22 @@ async def scrape_single_company(company_id: int) -> dict:
             return {"error": f"Company {company_id} not found"}
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=HEADERS, follow_redirects=True) as client:
-        jobs = await scrape_company(company, client)
+        try:
+            jobs = await scrape_company(company, client)
+        except httpx.HTTPStatusError as e:
+            status = f"error: {str(e)[:200]}"
+            await _update_company_status(company_id, status)
+            return {"error": status}
+        except Exception as e:
+            status = f"error: {str(e)[:200]}"
+            await _update_company_status(company_id, status)
+            return {"error": status}
 
     new_count = await upsert_jobs(jobs)
-    await _update_company_status(company_id, "success")
+    if len(jobs) > 0:
+        status = "success"
+    else:
+        status = "success_empty"
+    await _update_company_status(company_id, status)
 
     return {"company": company.name, "total_jobs": len(jobs), "new_jobs": new_count}
