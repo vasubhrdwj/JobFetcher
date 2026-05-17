@@ -6,8 +6,6 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from urllib.parse import urlparse
-
 import httpx
 from selectolax.parser import HTMLParser
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
@@ -179,8 +177,10 @@ class BaseATSParser:
                 resp = await client.get(url, follow_redirects=True)
                 resp.raise_for_status()
                 return resp.text
-            except httpx.HTTPStatusError:
-                raise
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 502, 503, 504):
+                    raise
+                return None
             except httpx.HTTPError:
                 return None
 
@@ -197,8 +197,10 @@ class BaseATSParser:
                     resp = await client.get(url, follow_redirects=True)
                 resp.raise_for_status()
                 return resp.json()
-            except httpx.HTTPStatusError:
-                raise
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 502, 503, 504):
+                    raise
+                return None
             except (httpx.HTTPError, ValueError):
                 return None
 
@@ -390,7 +392,7 @@ class LeverParser(BaseATSParser):
                 "salary_max": None,
                 "source": "lever_html",
                 "posted_at": None,
-                "content_hash": self.content_hash(f"{title}{apply_url}"),
+                "content_hash": self.content_hash(f"{text}{href}"),
             })
 
         return jobs
@@ -460,46 +462,51 @@ class WorkdayParser(BaseATSParser):
                 )
                 if not data:
                     return None if offset == 0 else all_jobs
-            except (httpx.HTTPStatusError, httpx.HTTPError, ValueError):
+            except Exception:
                 return None if offset == 0 else all_jobs
 
-            job_list = data.get("jobPostings") or []
-            if not job_list:
-                if offset == 0:
-                    return None
-                break
-
-            for job in job_list:
-                title = (job.get("title") or "").strip()
-                if not title:
-                    continue
-                ext_path = job.get("externalPath", "")
-                url = ext_path if ext_path.startswith("http") else f"https://{cxs_url.split('/wday/')[0]}{ext_path}"
-                location = job.get("locationsText", "")
-                posted_on = job.get("postedOn", "")
-
-                all_jobs.append({
-                    "title": title,
-                    "url": url,
-                    "location": location or None,
-                    "job_type": None,
-                    "seniority": _infer_seniority(title),
-                    "description": None,
-                    "requirements": None,
-                    "is_remote": "remote" in location.lower() if location else None,
-                    "salary_min": None,
-                    "salary_max": None,
-                    "source": "workday",
-                    "posted_at": posted_on or None,
-                    "content_hash": self.content_hash(f"{title}{url}"),
-                })
+            page_jobs, should_break = self._parse_cxs_page(data, cxs_url, offset)
+            all_jobs.extend(page_jobs)
 
             total = data.get("total", 0)
             offset += limit
-            if offset >= total or offset >= 500:
+            if should_break or offset >= total or offset >= 500:
                 break
 
-        return all_jobs
+        return all_jobs if all_jobs else (None if offset == limit else all_jobs)
+
+    def _parse_cxs_page(self, data: dict, cxs_url: str, offset: int) -> tuple[list[dict], bool]:
+        job_list = data.get("jobPostings") or []
+        if not job_list:
+            return [], True
+
+        base_host = urlparse(cxs_url).netloc
+        jobs = []
+        for job in job_list:
+            title = (job.get("title") or "").strip()
+            if not title:
+                continue
+            ext_path = job.get("externalPath", "")
+            url = ext_path if ext_path.startswith("http") else f"https://{base_host}{ext_path}"
+            location = job.get("locationsText", "")
+            posted_on = job.get("postedOn", "")
+
+            jobs.append({
+                "title": title,
+                "url": url,
+                "location": location or None,
+                "job_type": None,
+                "seniority": _infer_seniority(title),
+                "description": None,
+                "requirements": None,
+                "is_remote": "remote" in location.lower() if location else None,
+                "salary_min": None,
+                "salary_max": None,
+                "source": "workday",
+                "posted_at": posted_on or None,
+                "content_hash": self.content_hash(f"{title}{url}"),
+            })
+        return jobs, False
 
     async def _parse_html_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
         html = await self.fetch_page(company.career_url, client)
@@ -555,18 +562,23 @@ class WorkdayParser(BaseATSParser):
         return jobs
 
 
+def _add_params(url: str, params: str) -> str:
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}{params}"
+
+
 class ICIMSParser(BaseATSParser):
     ats_name = "icims"
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
         base_url = company.career_url.rstrip("/")
 
-        json_url = base_url + "?in_iframe=1&format=json"
+        json_url = _add_params(base_url, "in_iframe=1&format=json")
         data = await self.fetch_json(json_url, client)
         if data and isinstance(data, list) and len(data) > 0:
             return self._parse_json_jobs(data, base_url)
 
-        rss_url = base_url + "?in_iframe=1&format=rss"
+        rss_url = _add_params(base_url, "in_iframe=1&format=rss")
         rss_text = await self.fetch_page(rss_url, client)
         if rss_text and "rss" in rss_text.lower()[:500]:
             return self._parse_rss_jobs(rss_text, base_url)
@@ -582,7 +594,7 @@ class ICIMSParser(BaseATSParser):
                 continue
             url = item.get("url") or item.get("link") or ""
             if not url and item.get("id"):
-                url = f"{base_url}&jobId={item['id']}"
+                url = _add_params(base_url, f"jobId={item['id']}")
             if not url:
                 continue
             text = _clean_title(title)

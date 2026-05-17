@@ -175,7 +175,7 @@ async def scrape_all_companies():
         companies = result.scalars().all()
 
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
-    results: list[tuple[int, int, str]] = []
+    results: list[tuple[int, int, int, str]] = []
 
     async def scrape_with_semaphore(company: Company, client: httpx.AsyncClient):
         async with semaphore:
@@ -187,25 +187,25 @@ async def scrape_all_companies():
                 else:
                     status = "success_empty"
                 await _update_company_status(company.id, status)
-                results.append((company.id, len(jobs), status))
-            except httpx.HTTPStatusError as e:
-                status = f"error: {str(e)[:200]}"
+                results.append((company.id, len(jobs), new_count, status))
+            except httpx.HTTPError as e:
+                status = f"http_error: {str(e)[:200]}"
                 await _update_company_status(company.id, status)
-                results.append((company.id, 0, status))
+                results.append((company.id, 0, 0, status))
             except Exception as e:
-                status = f"error: {str(e)[:200]}"
+                status = f"parse_failed: {str(e)[:200]}"
                 await _update_company_status(company.id, status)
-                results.append((company.id, 0, status))
+                results.append((company.id, 0, 0, status))
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=HEADERS, follow_redirects=True) as client:
         tasks = [scrape_with_semaphore(company, client) for company in companies]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    scraped_company_ids = {cid for cid, _, status in results if status in ("success", "success_empty")}
+    scraped_company_ids = {cid for cid, _, _, status in results if status == "success"}
     await _sweep_stale_jobs(scraped_company_ids, run_started_at)
 
-    total_jobs = sum(count for _, count, _ in results)
-    total_new = sum(count for _, count, status in results if status == "success")
+    total_jobs = sum(jobs_count for _, jobs_count, _, _ in results)
+    total_new = sum(new_count for _, _, new_count, _ in results)
     logger.info(f"Scrape complete: {total_jobs} total jobs, {total_new} new jobs inserted across {len(companies)} companies")
     return {"total_jobs": total_jobs, "new_jobs": total_new, "companies_scraped": len(companies)}
 
@@ -219,12 +219,12 @@ async def scrape_single_company(company_id: int) -> dict:
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=HEADERS, follow_redirects=True) as client:
         try:
             jobs = await scrape_company(company, client)
-        except httpx.HTTPStatusError as e:
-            status = f"error: {str(e)[:200]}"
+        except httpx.HTTPError as e:
+            status = f"http_error: {str(e)[:200]}"
             await _update_company_status(company_id, status)
             return {"error": status}
         except Exception as e:
-            status = f"error: {str(e)[:200]}"
+            status = f"parse_failed: {str(e)[:200]}"
             await _update_company_status(company_id, status)
             return {"error": status}
 
