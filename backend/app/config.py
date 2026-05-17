@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
     SCRAPE_INTERVAL_HOURS: int = 3
     SCRAPE_CONCURRENCY: int = 5
+    LLM_FALLBACK_ENABLED: bool = False
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

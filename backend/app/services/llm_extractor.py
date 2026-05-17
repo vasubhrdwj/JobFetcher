@@ -92,3 +92,57 @@ async def extract_jobs_from_page(raw_html: str, url: str) -> list[dict]:
     if result:
         return [result]
     return []
+
+
+JOB_LINKS_PROMPT = """You are a job board page parser. Given the HTML of a company careers page, find all job listing links.
+Return a JSON array of objects, each with:
+- title: string (job title)
+- url: string (full URL to the job detail page)
+If no jobs are found, return an empty array.
+No explanations, just valid JSON."""
+
+
+async def extract_job_links_from_page(raw_html: str, page_url: str, max_links: int = 5) -> list[dict]:
+    from app.config import settings
+    if not settings.LLM_FALLBACK_ENABLED or not settings.OPENAI_API_KEY:
+        return []
+    if not raw_html or len(raw_html) < 500:
+        return []
+
+    truncated = raw_html[:15000]
+    try:
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": JOB_LINKS_PROMPT},
+                {"role": "user", "content": f"Page URL: {page_url}\n\nHTML:\n{truncated}"},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=1000,
+        )
+        content = response.choices[0].message.content
+        if not content:
+            return []
+        data = json.loads(content)
+        links = data if isinstance(data, list) else data.get("jobs", data.get("links", []))
+        if not isinstance(links, list):
+            return []
+        results = []
+        for item in links[:max_links]:
+            title = item.get("title", "").strip()
+            url = item.get("url", "").strip()
+            if not title or not url:
+                continue
+            results.append({
+                "title": title,
+                "url": url,
+                "location": item.get("location"),
+                "source": "llm_fallback",
+                "content_hash": hashlib.sha256((title + url).encode()).hexdigest(),
+            })
+        return results
+    except Exception as e:
+        logger.error(f"LLM link extraction failed for {page_url}: {e}")
+        return []

@@ -2,14 +2,28 @@ import asyncio
 import hashlib
 import logging
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+from urllib.parse import urlparse
 
 import httpx
 from selectolax.parser import HTMLParser
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from app.models.models import Company
 
 logger = logging.getLogger(__name__)
+
+_host_semaphores: dict[str, asyncio.Semaphore] = {}
+
+
+def _get_host_sem(url: str) -> asyncio.Semaphore:
+    host = urlparse(url).netloc.lower()
+    if host not in _host_semaphores:
+        _host_semaphores[host] = asyncio.Semaphore(2)
+    return _host_semaphores[host]
 
 NAV_BLACKLIST = {
     "see open positions", "explore our teams", "see our process",
@@ -119,7 +133,6 @@ def _is_valid_job_link(href: str, text: str, company_url: str) -> bool:
         return False
     NAV_PATHS = {"/privacy", "/terms", "/legal", "/about", "/contact", "/press", "/blog", "/docs", "/support", "/help", "/pricing", "/security", "/trust", "/changelog", "/status", "/community", "/customers", "/enterprise", "/resources", "/methodology", "/features", "/platform", "/solutions", "/services", "/login", "/signup", "/sign-up", "/sign-in"}
     try:
-        from urllib.parse import urlparse
         path = urlparse(href_lower).path.rstrip("/")
         if path in NAV_PATHS:
             return False
@@ -156,13 +169,38 @@ def _infer_seniority(title: str) -> str | None:
 class BaseATSParser:
     ats_name: str = "custom"
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10),
+           retry=retry_if_exception(lambda e: isinstance(e, httpx.HTTPStatusError) and e.response.status_code in (429, 502, 503, 504)),
+           reraise=True)
     async def fetch_page(self, url: str, client: httpx.AsyncClient) -> str | None:
-        try:
-            resp = await client.get(url, follow_redirects=True)
-            resp.raise_for_status()
-            return resp.text
-        except httpx.HTTPError:
-            return None
+        sem = _get_host_sem(url)
+        async with sem:
+            try:
+                resp = await client.get(url, follow_redirects=True)
+                resp.raise_for_status()
+                return resp.text
+            except httpx.HTTPStatusError:
+                raise
+            except httpx.HTTPError:
+                return None
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10),
+           retry=retry_if_exception(lambda e: isinstance(e, httpx.HTTPStatusError) and e.response.status_code in (429, 502, 503, 504)),
+           reraise=True)
+    async def fetch_json(self, url: str, client: httpx.AsyncClient, method: str = "GET", json_body: dict | None = None) -> dict | list | None:
+        sem = _get_host_sem(url)
+        async with sem:
+            try:
+                if method.upper() == "POST":
+                    resp = await client.post(url, json=json_body, headers={"Content-Type": "application/json"}, follow_redirects=True)
+                else:
+                    resp = await client.get(url, follow_redirects=True)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError:
+                raise
+            except (httpx.HTTPError, ValueError):
+                return None
 
     def content_hash(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
@@ -175,16 +213,13 @@ class GreenhouseParser(BaseATSParser):
     ats_name = "greenhouse"
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
-        token = self._extract_board_token(company.career_url, company.name)
+        token = company.ats_slug or self._extract_board_token(company.career_url, company.name)
         if not token:
             return []
 
         url = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
-        try:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPError, ValueError):
+        data = await self.fetch_json(url, client)
+        if not data or not isinstance(data, dict):
             return []
 
         jobs = []
@@ -214,8 +249,8 @@ class GreenhouseParser(BaseATSParser):
                 "salary_min": int(salary_min) if salary_min else None,
                 "salary_max": int(salary_max) if salary_max else None,
                 "source": "greenhouse",
-                "posted_at": job.get("updated_at"),
-                "content_hash": self.content_hash(f"{title}{location}"),
+                "posted_at": job.get("first_published") or job.get("updated_at"),
+                "content_hash": self.content_hash(f"{title}{location}{(description or '')[:1000]}"),
             })
         return jobs
 
@@ -226,7 +261,6 @@ class GreenhouseParser(BaseATSParser):
         match = re.search(r"greenhouse\.io/v1/boards/([^/?#]+)", url)
         if match:
             return match.group(1)
-        from urllib.parse import urlparse
         domain = urlparse(url).netloc.lower().replace("www.", "")
         parts = domain.split(".")
         slug = parts[0] if parts else None
@@ -246,17 +280,12 @@ class LeverParser(BaseATSParser):
     ats_name = "lever"
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
-        slug = self._extract_slug(company.career_url)
+        slug = company.ats_slug or self._extract_slug(company.career_url)
         if slug:
             url = f"https://api.lever.co/v0/postings/{slug}?mode=json"
-            try:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        return self._parse_api_jobs(data)
-            except (httpx.HTTPError, ValueError):
-                pass
+            data = await self.fetch_json(url, client)
+            if data and isinstance(data, list) and len(data) > 0:
+                return self._parse_api_jobs(data)
 
         return await self._parse_html_jobs(company, client)
 
@@ -278,6 +307,10 @@ class LeverParser(BaseATSParser):
 
             apply_url = posting.get("url") or posting.get("applyUrl") or ""
 
+            posted_at = posting.get("createdAt")
+            if isinstance(posted_at, (int, float)):
+                posted_at = datetime.fromtimestamp(posted_at / 1000, tz=timezone.utc).isoformat()
+
             jobs.append({
                 "title": title,
                 "url": apply_url,
@@ -290,8 +323,8 @@ class LeverParser(BaseATSParser):
                 "salary_min": None,
                 "salary_max": None,
                 "source": "lever_api",
-                "posted_at": posting.get("createdAt"),
-                "content_hash": self.content_hash(f"{title}{location}"),
+                "posted_at": posted_at,
+                "content_hash": self.content_hash(f"{title}{location}{description[:1000]}"),
             })
         return jobs
 
@@ -357,7 +390,7 @@ class LeverParser(BaseATSParser):
                 "salary_max": None,
                 "source": "lever_html",
                 "posted_at": None,
-                "content_hash": self.content_hash(f"{text}{href}"),
+                "content_hash": self.content_hash(f"{title}{apply_url}"),
             })
 
         return jobs
@@ -377,7 +410,98 @@ class LeverParser(BaseATSParser):
 class WorkdayParser(BaseATSParser):
     ats_name = "workday"
 
+    def _extract_cxs_parts(self, url: str, company_name: str | None = None) -> tuple[str, str] | None:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().replace("www.", "")
+        path = parsed.path.strip("/")
+        match = re.match(r"((?:[\w-]+\.wd\d+\.myworkdayjobs\.com)|(?:[\w-]+\.myworkdayjobs\.com))", host)
+        if not match:
+            return None
+        tenant_host = match.group(1)
+        parts = path.strip("/").split("/")
+        site = parts[0] if parts else None
+        if not site:
+            slug = company_name.lower().replace(" ", "").replace("-", "") if company_name else None
+            site = slug
+        if not site:
+            return None
+        return (tenant_host, site)
+
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
+        slug = company.ats_slug if company.ats_slug else None
+        if slug:
+            parts = slug.split("/", 1) if "/" in slug else None
+            if parts and len(parts) == 2:
+                cxs_url = f"https://{parts[0]}/wday/cxs/{parts[0].split('.')[0]}/{parts[1]}/jobs"
+                result = await self._fetch_cxs_jobs(cxs_url, client)
+                if result is not None:
+                    return result
+
+        cxs_parts = self._extract_cxs_parts(company.career_url, company.name)
+        if cxs_parts:
+            tenant_host, site = cxs_parts
+            tenant = tenant_host.split(".")[0]
+            cxs_url = f"https://{tenant_host}/wday/cxs/{tenant}/{site}/jobs"
+            result = await self._fetch_cxs_jobs(cxs_url, client)
+            if result is not None:
+                return result
+
+        return await self._parse_html_jobs(company, client)
+
+    async def _fetch_cxs_jobs(self, cxs_url: str, client: httpx.AsyncClient) -> list[dict] | None:
+        all_jobs = []
+        offset = 0
+        limit = 20
+        while True:
+            try:
+                data = await self.fetch_json(
+                    cxs_url, client, method="POST",
+                    json_body={"limit": limit, "offset": offset, "searchText": ""},
+                )
+                if not data:
+                    return None if offset == 0 else all_jobs
+            except (httpx.HTTPStatusError, httpx.HTTPError, ValueError):
+                return None if offset == 0 else all_jobs
+
+            job_list = data.get("jobPostings") or []
+            if not job_list:
+                if offset == 0:
+                    return None
+                break
+
+            for job in job_list:
+                title = (job.get("title") or "").strip()
+                if not title:
+                    continue
+                ext_path = job.get("externalPath", "")
+                url = ext_path if ext_path.startswith("http") else f"https://{cxs_url.split('/wday/')[0]}{ext_path}"
+                location = job.get("locationsText", "")
+                posted_on = job.get("postedOn", "")
+
+                all_jobs.append({
+                    "title": title,
+                    "url": url,
+                    "location": location or None,
+                    "job_type": None,
+                    "seniority": _infer_seniority(title),
+                    "description": None,
+                    "requirements": None,
+                    "is_remote": "remote" in location.lower() if location else None,
+                    "salary_min": None,
+                    "salary_max": None,
+                    "source": "workday",
+                    "posted_at": posted_on or None,
+                    "content_hash": self.content_hash(f"{title}{url}"),
+                })
+
+            total = data.get("total", 0)
+            offset += limit
+            if offset >= total or offset >= 500:
+                break
+
+        return all_jobs
+
+    async def _parse_html_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
         html = await self.fetch_page(company.career_url, client)
         if not html:
             return []
@@ -435,6 +559,89 @@ class ICIMSParser(BaseATSParser):
     ats_name = "icims"
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
+        base_url = company.career_url.rstrip("/")
+
+        json_url = base_url + "?in_iframe=1&format=json"
+        data = await self.fetch_json(json_url, client)
+        if data and isinstance(data, list) and len(data) > 0:
+            return self._parse_json_jobs(data, base_url)
+
+        rss_url = base_url + "?in_iframe=1&format=rss"
+        rss_text = await self.fetch_page(rss_url, client)
+        if rss_text and "rss" in rss_text.lower()[:500]:
+            return self._parse_rss_jobs(rss_text, base_url)
+
+        return await self._parse_html_jobs(company, client)
+
+    def _parse_json_jobs(self, data: list, base_url: str) -> list[dict]:
+        jobs = []
+        seen = set()
+        for item in data:
+            title = (item.get("title") or item.get("position") or "").strip()
+            if not title:
+                continue
+            url = item.get("url") or item.get("link") or ""
+            if not url and item.get("id"):
+                url = f"{base_url}&jobId={item['id']}"
+            if not url:
+                continue
+            text = _clean_title(title)
+            if not text or text.lower() in seen:
+                continue
+            seen.add(text.lower())
+            location = item.get("location") or item.get("city") or ""
+            jobs.append({
+                "title": text,
+                "url": url,
+                "location": location or None,
+                "job_type": None,
+                "seniority": _infer_seniority(text),
+                "description": None,
+                "requirements": None,
+                "is_remote": "remote" in location.lower() if location else None,
+                "salary_min": None,
+                "salary_max": None,
+                "source": "icims_json",
+                "posted_at": item.get("posted_date") or item.get("created_date"),
+                "content_hash": self.content_hash(f"{text}{url}"),
+            })
+        return jobs
+
+    def _parse_rss_jobs(self, rss_text: str, base_url: str) -> list[dict]:
+        jobs = []
+        seen = set()
+        try:
+            root = ET.fromstring(rss_text)
+        except ET.ParseError:
+            return []
+        for item in root.iter("item"):
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            if not title or not link:
+                continue
+            text = _clean_title(title)
+            if not text or text.lower() in seen:
+                continue
+            seen.add(text.lower())
+            location = item.findtext("location") or ""
+            jobs.append({
+                "title": text,
+                "url": link,
+                "location": location or None,
+                "job_type": None,
+                "seniority": _infer_seniority(text),
+                "description": None,
+                "requirements": None,
+                "is_remote": "remote" in location.lower() if location else None,
+                "salary_min": None,
+                "salary_max": None,
+                "source": "icims_rss",
+                "posted_at": item.findtext("pubDate"),
+                "content_hash": self.content_hash(f"{text}{link}"),
+            })
+        return jobs
+
+    async def _parse_html_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
         html = await self.fetch_page(company.career_url, client)
         if not html:
             return []
@@ -482,17 +689,12 @@ class AshbyParser(BaseATSParser):
     ats_name = "ashby"
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
-        slug = self._extract_slug(company.career_url)
+        slug = company.ats_slug or self._extract_slug(company.career_url)
         if slug:
             url = f"https://www.ashbyhq.com/api/careers/{slug}?isPublished=true"
-            try:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if isinstance(data, dict) and "jobs" in data:
-                        return self._parse_api_jobs(data, slug)
-            except (httpx.HTTPError, ValueError):
-                pass
+            data = await self.fetch_json(url, client)
+            if data and isinstance(data, dict) and "jobs" in data:
+                return self._parse_api_jobs(data, slug)
 
         return await self._parse_html_jobs(company, client)
 
@@ -652,6 +854,16 @@ class CustomParser(BaseATSParser):
                 "posted_at": None,
                 "content_hash": self.content_hash(f"{text}{url}"),
             })
+
+        if len(jobs) < 3:
+            from app.config import settings
+            if settings.LLM_FALLBACK_ENABLED and settings.OPENAI_API_KEY:
+                from app.services.llm_extractor import extract_job_links_from_page
+                llm_jobs = await extract_job_links_from_page(html, company.career_url)
+                for j in llm_jobs:
+                    if j.get("title", "").lower() not in seen:
+                        jobs.append(j)
+                        seen.add(j.get("title", "").lower())
 
         return jobs
 
