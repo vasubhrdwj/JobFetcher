@@ -1,7 +1,7 @@
 import pytest
 import pytest_asyncio
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from app.database import async_session, engine
 from app.models.models import Base, Company, Job, ATSPlatform

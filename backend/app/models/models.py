@@ -25,7 +25,7 @@ class Company(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     career_url: Mapped[str] = mapped_column(String(1024))
-    ats_platform: Mapped[ATSPlatform] = mapped_column(Enum(ATSPlatform), default=ATSPlatform.CUSTOM)
+    ats_platform: Mapped[ATSPlatform] = mapped_column(Enum(ATSPlatform, values_callable=lambda obj: [e.value for e in obj]), default=ATSPlatform.CUSTOM)
     ats_slug: Mapped[str | None] = mapped_column(String(255))
     industry: Mapped[str | None] = mapped_column(String(128))
     logo_url: Mapped[str | None] = mapped_column(String(1024))
@@ -107,7 +107,7 @@ class Application(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_profiles.id"), index=True)
     job_id: Mapped[int] = mapped_column(Integer, ForeignKey("jobs.id"), index=True)
     status: Mapped[ApplicationStatus] = mapped_column(
-        Enum(ApplicationStatus), default=ApplicationStatus.SAVED
+        Enum(ApplicationStatus, values_callable=lambda obj: [e.value for e in obj]), default=ApplicationStatus.SAVED
     )
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)

@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import logging
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -12,7 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from app.models.models import Company
 
-logger = logging.getLogger(__name__)
+
 
 _host_semaphores: dict[str, asyncio.Semaphore] = {}
 
@@ -42,6 +41,7 @@ NAV_BLACKLIST = {
     "solutions", "services", "use cases", "case studies", "testimonials",
     "webinars", "events", "podcast", "newsletter", "careers home",
     "search", "menu", "skip to content", "toggle", "close",
+    "search again", "log back in", "again", "intro",
 }
 
 URL_BLACKLIST_PATTERNS = [
@@ -50,10 +50,12 @@ URL_BLACKLIST_PATTERNS = [
     re.compile(r"^mailto:", re.I),
     re.compile(r"^javascript:", re.I),
     re.compile(r"/feed(/|$)", re.I),
+    re.compile(r"/jobs/(intro|login)(/|$|\?)", re.I),
 ]
 
 def _clean_title(raw: str) -> str:
     t = raw.strip()
+    t = re.sub(r"^Title\s+", "", t)
     t = re.sub(r"\s+", " ", t)
 
     TRAILING_NOISE = re.compile(
@@ -569,6 +571,10 @@ def _add_params(url: str, params: str) -> str:
 
 class ICIMSParser(BaseATSParser):
     ats_name = "icims"
+
+    # NOTE: JSON and RSS endpoints are best-effort; most iCIMS tenants return
+    # HTML for all format params. HTML fallback is the only path smoke-tested
+    # against a real tenant (General Dynamics / careers-gdms.icims.com).
 
     async def parse_jobs(self, company: Company, client: httpx.AsyncClient) -> list[dict]:
         base_url = company.career_url.rstrip("/")
