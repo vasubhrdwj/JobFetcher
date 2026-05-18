@@ -42,6 +42,8 @@ NAV_BLACKLIST = {
     "webinars", "events", "podcast", "newsletter", "careers home",
     "search", "menu", "skip to content", "toggle", "close",
     "search again", "log back in", "again", "intro",
+    "for app developers", "champions of data", "architecture center",
+    "data lakehouse", "lakehouse architecture",
 }
 
 URL_BLACKLIST_PATTERNS = [
@@ -53,10 +55,18 @@ URL_BLACKLIST_PATTERNS = [
     re.compile(r"/jobs/(intro|login)(/|$|\?)", re.I),
 ]
 
-def _clean_title(raw: str) -> str:
+def _clean_title(raw: str | None) -> str:
+    if not raw:
+        return ""
     t = raw.strip()
     t = re.sub(r"^Title\s+", "", t)
     t = re.sub(r"\s+", " ", t)
+
+    if re.search(r"(?:const |var |let |function\s*\(|=>|document\.|window\.|createElement|HTMLImageElement|querySelector|addEventListener|module\.exports)", t):
+        return ""
+
+    if len(t) > 500:
+        return ""
 
     TRAILING_NOISE = re.compile(
         r"\s*(?:"
@@ -116,7 +126,9 @@ def _clean_title(raw: str) -> str:
     return t
 
 
-def _is_valid_job_link(href: str, text: str, company_url: str) -> bool:
+def _is_valid_job_link(href: str, text: str | None, company_url: str) -> bool:
+    if not href or not text:
+        return False
     href_lower = href.lower().split("?")[0].split("#")[0]
     text_lower = text.lower().strip()
     if len(text) < 8:

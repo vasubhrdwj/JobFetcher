@@ -142,7 +142,7 @@ async def _update_company_status(company_id: int, status: str):
         company_obj = await session.get(Company, company_id)
         if company_obj:
             company_obj.last_scraped_at = datetime.now(timezone.utc)
-            company_obj.scrape_status = status[:250]
+            company_obj.scrape_status = status[:1000]
             await session.commit()
 
 
